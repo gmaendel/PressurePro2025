@@ -142,7 +142,7 @@ void loop() {
     }
     display.display();
 
-    delay(1000); // Loop delay (adjust as needed)
+    delay(100); // Loop delay (adjust as needed)
 }
 
 // ----- Cloud Function Implementations ----- //
