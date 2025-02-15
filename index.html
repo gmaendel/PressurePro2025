@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tire Pressure Monitor</title>
+  <!-- Particle JavaScript Library (from your working example) -->
+  <script src="https://cdn.jsdelivr.net/gh/particle-iot/particle-api-js/dist/particle.min.js"></script>
+  <!-- Bootstrap CSS for modern styling -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <style>
+    body {
+      background: #f8f9fa;
+      padding-top: 20px;
+    }
+    .gauge-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+    .gauge-box {
+      margin: 15px;
+    }
+    .card {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="text-center mb-4">Tire Pressure Monitor</h1>
+    
+    <!-- Gauges -->
+    <div class="gauge-container">
+      <div class="gauge-box">
+        <canvas id="pressureGauge" width="300" height="300"></canvas>
+        <h5 class="text-center mt-2">Current Tire Pressure</h5>
+      </div>
+      <div class="gauge-box">
+        <canvas id="setpointGauge" width="300" height="300"></canvas>
+        <h5 class="text-center mt-2">Active Setpoint</h5>
+      </div>
+    </div>
+    
+    <!-- Particle Functions Controls -->
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header bg-primary text-white">
+            Particle Functions
+          </div>
+          <div class="card-body">
+            <!-- High Setpoint -->
+            <div class="form-group">
+              <label for="highSetpoint">High Setpoint (PSI):</label>
+              <input type="number" class="form-control" id="highSetpoint" placeholder="Enter high setpoint" step="0.1">
+              <button type="button" class="btn btn-outline-primary btn-block mt-2" id="setHighSetpointBtn">Set High Setpoint</button>
+            </div>
+            <!-- Low Setpoint -->
+            <div class="form-group">
+              <label for="lowSetpoint">Low Setpoint (PSI):</label>
+              <input type="number" class="form-control" id="lowSetpoint" placeholder="Enter low setpoint" step="0.1">
+              <button type="button" class="btn btn-outline-primary btn-block mt-2" id="setLowSetpointBtn">Set Low Setpoint</button>
+            </div>
+            <!-- Setpoint Selection -->
+            <div class="form-group">
+              <label for="setpointSelection">Setpoint Selection:</label>
+              <select class="form-control" id="setpointSelection">
+                <option value="low">Low</option>
+                <option value="high">High</option>
+              </select>
+              <button type="button" class="btn btn-outline-primary btn-block mt-2" id="setSetpointSelectionBtn">Set Setpoint Selection</button>
+            </div>
+            <!-- Low Hysteresis -->
+            <div class="form-group">
+              <label for="lowHys">Low Hysteresis (PSI):</label>
+              <input type="number" class="form-control" id="lowHys" placeholder="Enter low hysteresis" step="0.1">
+              <button type="button" class="btn btn-outline-primary btn-block mt-2" id="setLowHysBtn">Set Low Hysteresis</button>
+            </div>
+            <!-- High Hysteresis -->
+            <div class="form-group">
+              <label for="highHys">High Hysteresis (PSI):</label>
+              <input type="number" class="form-control" id="highHys" placeholder="Enter high hysteresis" step="0.1">
+              <button type="button" class="btn btn-outline-primary btn-block mt-2" id="setHighHysBtn">Set High Hysteresis</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Device Status -->
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header bg-success text-white">
+            Device Status
+          </div>
+          <div class="card-body">
+            <p id="deviceStatus">Subscribing...</p>
+            <p class="small">Particle device ID: <span id="deviceIdDisplay"></span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Load Canvas Gauges and other libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-gauges@2.1.7/gauge.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+  
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      console.log("DOM fully loaded and parsed");
+
+      // Check that the Particle object is available.
+      if (typeof Particle === 'undefined') {
+        console.error("Particle is not defined. Check that the Particle API JS library is loaded correctly.");
+        return;
+      }
+
+      // -----------------------------
+      // Setup Gauges
+      // -----------------------------
+      var pressureGauge = new RadialGauge({
+        renderTo: 'pressureGauge',
+        width: 300,
+        height: 300,
+        units: "PSI",
+        minValue: 0,
+        maxValue: 150,
+        value: 0,
+        majorTicks: ["0","15","30","45","60","75","90","105","120","135","150"],
+        minorTicks: 2,
+        strokeTicks: true,
+        highlights: [
+          { from: 0, to: 50, color: 'rgba(0,255,0,.15)' },
+          { from: 50, to: 100, color: 'rgba(255,255,0,.15)' },
+          { from: 100, to: 150, color: 'rgba(255,30,0,.25)' }
+        ],
+        colorPlate: "#fff",
+        colorMajorTicks: "#000",
+        colorMinorTicks: "#000",
+        colorNumbers: "#000",
+        valueBox: true,
+        animationRule: "bounce",
+        animationDuration: 1500
+      }).draw();
+      
+      var setpointGauge = new RadialGauge({
+        renderTo: 'setpointGauge',
+        width: 300,
+        height: 300,
+        units: "Setpoint PSI",
+        minValue: 0,
+        maxValue: 150,
+        value: 0,
+        majorTicks: ["0","15","30","45","60","75","90","105","120","135","150"],
+        minorTicks: 2,
+        strokeTicks: true,
+        colorPlate: "#fff",
+        colorMajorTicks: "#000",
+        colorMinorTicks: "#000",
+        colorNumbers: "#000",
+        valueBox: true,
+        animationRule: "bounce",
+        animationDuration: 1500
+      }).draw();
+      
+      // -----------------------------
+      // Particle API & Device Settings
+      // -----------------------------
+      const particle = new Particle();
+      // Replace these with your actual Particle Access Token and Device ID
+      const accessToken = 'cfc2ab58be9b48d6090c6b6b61fec522c3d9f238';
+      const deviceId = '0a10aced202194944a04bda4';
+      document.getElementById('deviceIdDisplay').innerText = deviceId;
+      
+      // -----------------------------
+      // Subscribe to Pressure Events
+      // -----------------------------
+      function subscribeToPressure() {
+        particle.getEventStream({ name: "pressure", auth: accessToken, deviceId: deviceId })
+        .then(function(stream) {
+          document.getElementById('deviceStatus').innerText = 'Subscribed to pressure events';
+          stream.on('event', function(data) {
+            // data.data contains the published pressure as a string.
+            const psi = parseFloat(data.data);
+            console.log("Received pressure:", psi);
+            pressureGauge.value = psi;
+            // For demonstration: if PSI is less than 75, use the low setpoint input (default 25), else high (default 100).
+            let target = document.getElementById('lowSetpoint').value || 25;
+            if (psi >= 75) {
+              target = document.getElementById('highSetpoint').value || 100;
+            }
+            setpointGauge.value = parseFloat(target);
+          });
+        })
+        .catch(function(err) {
+          console.error('Error subscribing to pressure events:', err);
+          document.getElementById('deviceStatus').innerText = 'Subscription error';
+        });
+      }
+      
+      subscribeToPressure();
+      
+      // -----------------------------
+      // Utility: Call Particle Functions
+      // -----------------------------
+      function callParticleFunction(fnName, arg) {
+        particle.callFunction({ deviceId: deviceId, name: fnName, argument: arg, auth: accessToken })
+        .then(data => {
+          console.log(fnName, 'result:', data);
+        })
+        .catch(err => {
+          console.error('Error calling function', fnName, err);
+        });
+      }
+      
+      // -----------------------------
+      // UI Event Listeners for Particle Functions
+      // -----------------------------
+      document.getElementById('setHighSetpointBtn').addEventListener('click', function() {
+        const val = document.getElementById('highSetpoint').value;
+        callParticleFunction('HighSetpoint', val);
+      });
+      
+      document.getElementById('setLowSetpointBtn').addEventListener('click', function() {
+        const val = document.getElementById('lowSetpoint').value;
+        callParticleFunction('LowSetpoint', val);
+      });
+      
+      document.getElementById('setSetpointSelectionBtn').addEventListener('click', function() {
+        const val = document.getElementById('setpointSelection').value;
+        callParticleFunction('SetpointSelection', val);
+      });
+      
+      document.getElementById('setLowHysBtn').addEventListener('click', function() {
+        const val = document.getElementById('lowHys').value;
+        callParticleFunction('LowHys', val);
+      });
+      
+      document.getElementById('setHighHysBtn').addEventListener('click', function() {
+        const val = document.getElementById('highHys').value;
+        callParticleFunction('HighHys', val);
+      });
+    });
+  </script>
+</body>
+</html>
